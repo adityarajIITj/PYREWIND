@@ -1,0 +1,39 @@
+# Python bytecode and interpreter caches
+__pycache__/
+*.py[cod]
+
+# Test and tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Local environments and package build outputs
+.venv/
+.uv-cache/
+build/
+dist/
+*.egg-info/
+
+# Editor and workspace-local settings
+.vscode/
+.idea/
+
+# Local environment and secret-bearing files
+.env
+.env.*
+*.local
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+
+# Databases, logs, and generated trace artifacts
+*.db
+*.sqlite3
+*.log
+*.pyrewind.json
+
