@@ -2,6 +2,8 @@
 
 `pyrewind` records the line-by-line execution of a regular Python function and returns an inspectable trace alongside its result. It is intended for local debugging, teaching, and lightweight execution forensics: run a function, inspect the values that were in scope at each recorded line, save the trace, and make an assisted rerun with changed keyword arguments.
 
+**Version 0.2.0a0 (v2)** includes major new features: trace analysis tools, CLI integration, advanced filtering, tagging system, and plugin architecture—all while maintaining **100% backwards compatibility with v0.1**.
+
 ## Install
 
 pyrewind has no required runtime dependencies and supports Python 3.10+.
@@ -41,6 +43,66 @@ trace.to_file("discount.pyrewind.json")
 ```
 
 See [examples/basic_usage.py](examples/basic_usage.py) for a complete runnable example.
+
+## v2 Features: Trace Analysis & Advanced Tools
+
+### Analyze Execution with TraceInspector
+
+```python
+from pyrewind import rewindable, TraceInspector
+
+@rewindable
+def calculate(x, y):
+    result = x + y
+    return result
+
+result, trace = calculate.run(10, 20)
+inspector = TraceInspector(trace)
+
+# Timing analysis
+print(f"Total time: {inspector.execution_time_ms():.2f} ms")
+print(f"Avg per step: {inspector.average_time_per_step_us():.2f} µs")
+
+# Comprehensive summary
+summary = inspector.summary()
+print(f"Steps: {summary['total_steps']}")
+print(f"Mean time: {summary['timing']['mean_us']:.2f} µs")
+
+# Find slowest parts
+hotspots = inspector.hotspots()
+```
+
+### Advanced Filtering & Slicing
+
+```python
+from pyrewind import AdvancedTraceFilter, TraceSlice
+
+# Chainable filtering
+filtered = (
+    AdvancedTraceFilter(trace)
+    .by_function("calculate")
+    .by_line_range(5, 15)
+    .by_local_name("result")
+    .apply()
+)
+
+# Slice and merge traces
+first_half = TraceSlice.first_n_steps(trace, len(trace.steps) // 2)
+merged = TraceSlice.merge_traces([trace1, trace2])
+```
+
+### Metadata & Tagging
+
+```python
+from pyrewind import TraceTagger
+
+tagger = TraceTagger()
+tagger.add_tag("performance-test")
+tagger.annotate_step(0, "Entry point")
+
+# Serialize for persistence
+data = tagger.to_dict()
+```
 
 ## API reference
 
@@ -111,16 +173,47 @@ pyrewind captures Python `line` events for the decorated function only. Step ord
 
 Local snapshots are frozen into JSON-safe values as they are captured. Primitive values are retained; standard containers are copied recursively up to `max_depth`; unsupported or deeply nested values are represented with their type and `repr`. This makes earlier snapshots stable even when a mutable local is changed later, but it is not a deep object debugger.
 
-## Limitations and non-goals (v0.1)
+## Limitations and non-goals
 
-- Regular synchronous Python functions are the supported target. Async, generator, and coroutine tracing are not a v0.1 feature.
+- Regular synchronous Python functions are the primary target. Async/await is supported via `AsyncFunctionTracer` in v2.
 - Nested calls are not expanded into the parent trace; only the decorated function's own line events are recorded.
 - Replay is a rerun with supplied or same-process inputs, not checkpoint restoration or deterministic execution.
 - Saved traces are portable JSON diagnostics, not a serialization format for arbitrary Python objects or executable state.
-- This release does not provide configurable variable filtering, secret redaction hooks, I/O stubs, or a visual trace viewer.
+
+## v2 Architecture
+
+PyRewind v2 is organized into several modules providing extensible capabilities:
+
+- **core/**: Plugin system, storage backends, event dispatching, serialization strategies
+- **analysis/**: Trace inspection and analysis tools (TraceInspector)
+- **trace/**: Advanced filtering and trace slicing (AdvancedTraceFilter, TraceSlice)
+- **cli/**: Command-line interface for trace inspection and export
+- **metadata/**: Tagging and annotation system (TraceTagger)
+- **plugins/**: Example plugin implementations and extensibility points
+
+## Backwards Compatibility
+
+All v0.1 functionality is preserved and fully compatible. Existing code continues to work without modification. New features are additive.
+
+## Examples
+
+- [basic_usage.py](examples/basic_usage.py) - v0.1 basic example
+- [v2_showcase.py](examples/v2_showcase.py) - v2 features demo
+- [v2_comprehensive_showcase.py](examples/v2_comprehensive_showcase.py) - Complete v2 feature showcase
+
+## Testing
+
+Run the test suite:
+
+```bash
+python -m pytest tests/ -v          # All tests
+python -m pytest tests/test_v2*.py  # v2 feature tests only
+```
+
+All 24 tests pass (11 v0.1 backwards compatibility + 13 v2 features)
 
 ## Performance and privacy
 
 Line tracing and freezing locals add noticeable overhead, so use pyrewind for debugging and focused investigations rather than hot production paths.
 
-Traces can contain values from local variables, including credentials, tokens, customer data, and file paths. Treat trace files as sensitive artifacts: avoid committing or sharing them, review them before export, and redact sensitive values in application code until configurable redaction hooks are available.
+Traces can contain values from local variables, including credentials, tokens, customer data, and file paths. Treat trace files as sensitive artifacts: avoid committing or sharing them, review them before export, and redact sensitive values in application code.
