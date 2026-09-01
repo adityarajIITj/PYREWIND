@@ -4,22 +4,37 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pyrewind"
-version = "0.1.0a0"
-description = "Step-by-step execution traces and assisted replay for Python functions"
+version = "0.2.0a0"
+description = "Step-by-step execution traces and assisted replay for Python functions with comprehensive analysis tools"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "pyrewind contributors" }]
+authors = [{ name = "pyrewind contributors", email = "pyrewind@example.com" }]
+keywords = ["tracing", "execution", "debugging", "analysis", "replay"]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Debuggers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
 ]
 dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/adityarajIITj/PYREWIND"
+Documentation = "https://github.com/adityarajIITj/PYREWIND/blob/main/README.md"
+Repository = "https://github.com/adityarajIITj/PYREWIND.git"
+Issues = "https://github.com/adityarajIITj/PYREWIND/issues"
 
 [project.optional-dependencies]
 dev = ["mypy>=1.8", "pytest>=7", "ruff>=0.4"]
