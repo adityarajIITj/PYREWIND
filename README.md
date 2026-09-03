@@ -1,219 +1,198 @@
-# pyrewind
+# pyrewind: Python Execution Forensics, Time-Travel Debugging & Automated Diagnostics
 
-`pyrewind` records the line-by-line execution of a regular Python function and returns an inspectable trace alongside its result. It is intended for local debugging, teaching, and lightweight execution forensics: run a function, inspect the values that were in scope at each recorded line, save the trace, and make an assisted rerun with changed keyword arguments.
+<p align="left">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-007EC6.svg" alt="License: MIT"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.10+-44CC11.svg" alt="Python 3.10+"></a>
+  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg" alt="Platform: Windows | macOS | Linux">
+  <img src="https://img.shields.io/badge/Tests-59%20Passed-success.svg" alt="Tests">
+</p>
 
-**Version 0.2.0a0 (v2)** includes major new features: trace analysis tools, CLI integration, advanced filtering, tagging system, and plugin architecture—all while maintaining **100% backwards compatibility with v0.1**.
+`pyrewind` is a zero-dependency Python execution forensics, time-travel debugging, and automated diagnostic library. It records the step-by-step lifecycle of Python functions, freezes local variable mutations across execution steps, provides an interactive terminal time-travel scrubber, and automatically identifies root causes and anomalies when functions crash or produce invalid states.
 
-## Install
+---
 
-pyrewind has no required runtime dependencies and supports Python 3.10+.
+## Key Capabilities
+
+1. **Interactive Terminal TUI Scrubber (`pyrewind tui`)**:
+   - Step forward and backward through execution history using standard keyboard navigation.
+   - Dual-pane layout: source code highlighting on the left, local variable mutation table on the right.
+   - Jump directly to exceptions, checkpoints, and performance bottlenecks.
+2. **Automated Root-Cause Diagnostic & Anomaly Engine (`pyrewind diagnose` / `pyrewind.diagnostics`)**:
+   - **`RootCauseExplainer`**: Backward data-flow dependency analysis from exceptions or return values to pinpoint the originating line and mutated variable.
+   - **`AnomalyDetector`**: Identifies unexpected `None` transitions, `NaN`/`Inf` arithmetic bugs, runaway collection growth inside loops, and timing execution spikes.
+3. **Assisted Replay & Parameter Overrides (`replay`)**:
+   - Fluent replay builder for rerunning functions with modified arguments or step overrides.
+4. **Trace Analysis & Comparison (`TraceInspector` & `TraceComparison`)**:
+   - Performance hotspot identification, execution diffing between multiple runs, and variable lifecycle inspection.
+5. **Zero External Runtime Dependencies**:
+   - Implemented entirely with the Python Standard Library.
+
+---
+
+## Interactive Terminal TUI Showcase
+
+The interactive terminal scrubber enables developers to inspect execution states without external GUI or web dependencies:
+
+### 1. Loop Iteration & Variable Mutation Tracking
+Live execution view showing active source code line highlight alongside the mutated local variables table:
+
+![Terminal TUI Scrubber Loop Iteration](docs/images/tui_scrubber_loop.png)
+
+### 2. Initial Step Allocation & Scope Inspection
+Initial execution step displaying captured function arguments and variable initialization states:
+
+![Terminal TUI Scrubber Initial Step](docs/images/tui_scrubber_initial.png)
+
+---
+
+## Installation
 
 ```bash
-python -m pip install pyrewind
+# Install from PyPI
+pip install pyrewind
+
+# Or install from source in editable mode
+git clone https://github.com/adityarajIITj/PYREWIND.git
+cd PYREWIND
+pip install -e .
 ```
 
-For a checkout of this repository:
+---
 
-```bash
-python -m pip install -e .
-```
+## Quickstart Guide
 
-## 60-second quickstart
-
+### 1. Tracing Function Execution
 ```python
 from pyrewind import rewindable
 
+@rewindable
+def calculate_tax(gross_income, deduction_rate):
+    deductions = gross_income * deduction_rate
+    taxable_amount = gross_income - deductions
+    tax = taxable_amount * 0.20
+    return tax
+
+# Run with trace recording
+tax, trace = calculate_tax.run(100_000, 0.15)
+print(f"Tax: ${tax}")
+print(f"Recorded Steps: {len(trace.steps)}")
+
+# Inspect step 0 locals
+print(trace.at(0).locals())
+```
+
+---
+
+### 2. Interactive Terminal Time-Travel Scrubber (`TUI`)
+
+Scrub through any recorded trace interactively in your terminal:
+
+```python
+from pyrewind import rewindable, launch_tui
 
 @rewindable
-def apply_discount(price, percent):
-    discount = price * percent / 100
-    return price - discount
+def complex_algorithm():
+    data = []
+    for i in range(5):
+        data.append(i * 10)
+    return sum(data)
 
-
-# Ordinary calls retain the function's normal behavior.
-assert apply_discount(100, 20) == 80
-
-# Use .run() when a trace is wanted.
-result, trace = apply_discount.run(100, 20)
-print(result)                         # 80.0
-print(len(trace.steps))               # one or more line snapshots
-print(trace.at(0).locals())           # locals at the first recorded step
-
-trace.to_file("discount.pyrewind.json")
+complex_algorithm.run()
+launch_tui(complex_algorithm.last_trace)
 ```
 
-See [examples/basic_usage.py](examples/basic_usage.py) for a complete runnable example.
+**Or from the CLI**:
+```bash
+pyrewind tui trace.json
+```
 
-## v2 Features: Trace Analysis & Advanced Tools
+**Keybindings**:
+- `[<- / h]`: Step Backward
+- `[-> / l]`: Step Forward
+- `[0 / Home]`: Jump to First Step
+- `[$ / End]`: Jump to Last Step
+- `[e]`: Jump directly to Exception
+- `[d]`: View Full Diagnostic Report
+- `[q]`: Quit Scrubber
 
-### Analyze Execution with TraceInspector
+---
+
+### 3. Automated Root-Cause Diagnostics & Anomaly Detection
 
 ```python
-from pyrewind import rewindable, TraceInspector
+from pyrewind import rewindable, diagnose_trace
 
 @rewindable
-def calculate(x, y):
-    result = x + y
-    return result
+def process_pipeline(val, rate):
+    offset = rate - 0.05
+    divisor = offset + 1.0  # Divisor becomes 0 if rate == -0.95
+    return (val * 1.5) / divisor
 
-result, trace = calculate.run(10, 20)
-inspector = TraceInspector(trace)
+try:
+    process_pipeline.run(1000, -0.95)
+except ZeroDivisionError:
+    pass
 
-# Timing analysis
-print(f"Total time: {inspector.execution_time_ms():.2f} ms")
-print(f"Avg per step: {inspector.average_time_per_step_us():.2f} µs")
-
-# Comprehensive summary
-summary = inspector.summary()
-print(f"Steps: {summary['total_steps']}")
-print(f"Mean time: {summary['timing']['mean_us']:.2f} µs")
-
-# Find slowest parts
-hotspots = inspector.hotspots()
+# Generate automated root cause report
+report = diagnose_trace(process_pipeline.last_trace)
+print(report)
 ```
 
-### Advanced Filtering & Slicing
+**Sample Diagnostic Output**:
+```
+=== PyRewind Automated Diagnostic Report ===
+Function: process_pipeline (__main__)
+Total Steps: 5 | Trace ID: 2a7804a2
+------------------------------------------------------------
 
-```python
-from pyrewind import AdvancedTraceFilter, TraceSlice
+[!] ROOT CAUSE DIAGNOSIS: ZeroDivisionError
+    Message: division by zero
+    Failure Point: Step #4 (line 7)
+    Root Cause Point: Step #3 (line 6)
 
-# Chainable filtering
-filtered = (
-    AdvancedTraceFilter(trace)
-    .by_function("calculate")
-    .by_line_range(5, 15)
-    .by_local_name("result")
-    .apply()
-)
+    Explanation: ZeroDivisionError occurred at line 7 because variable 'divisor' was evaluated as 0. Variable 'divisor' was assigned 0 at Step #3 (line 6).
+    Remediation: Add a defensive check: 'if divisor == 0: ...' or check the assignment logic at line 6.
 
-# Slice and merge traces
-first_half = TraceSlice.first_n_steps(trace, len(trace.steps) // 2)
-merged = TraceSlice.merge_traces([trace1, trace2])
+    Tainted Variables:
+      - divisor: introduced at Step #3 (line 6) -> Assigned 0/0.0 at Step #3 (line 6), subsequently used as divisor.
+
+[*] DETECTED ANOMALIES (0 found):
+    No data-flow or arithmetic anomalies detected.
+============================================================
 ```
 
-### Metadata & Tagging
+---
 
-```python
-from pyrewind import TraceTagger
+## CLI Command Reference
 
-tagger = TraceTagger()
-tagger.add_tag("performance-test")
-tagger.annotate_step(0, "Entry point")
+| Command | Usage | Description |
+| :--- | :--- | :--- |
+| **`tui`** | `pyrewind tui <trace.json>` | Launch interactive Terminal Time-Travel Scrubber. |
+| **`diagnose`** | `pyrewind diagnose <trace.json> [--var <name>]` | Run automated root-cause & anomaly diagnostics. |
+| **`inspect`** | `pyrewind inspect <trace.json> [-v]` | Print statistical timing and variable summaries. |
+| **`diff`** | `pyrewind diff <trace1.json> <trace2.json>` | Compare two execution traces and identify divergences. |
+| **`export`** | `pyrewind export <trace.json> -o out.html -f html` | Export trace to HTML, CSV, or JSON. |
 
-# Serialize for persistence
-data = tagger.to_dict()
-```
+---
 
-## API reference
-
-### `@rewindable`
-
-```python
-from pyrewind import rewindable
-
-
-@rewindable
-def function(...):
-    ...
-```
-
-The decorated callable preserves its usual call behavior: `function(*args, **kwargs)` simply executes the original function and returns its result.
-
-Call `function.run(*args, **kwargs)` to execute it under pyrewind's tracer. On success it returns `(result, trace)`. Step IDs are zero-based, contiguous, and identify the corresponding entry in `trace.steps`.
-
-The decorator also accepts these optional keyword arguments:
-
-```python
-@rewindable(max_depth=3, capture_exceptions=True)
-def function(...):
-    ...
-```
-
-`max_depth` bounds recursive freezing of container values in local snapshots. With the default `capture_exceptions=True`, `.run()` still re-raises the original exception, preserving normal Python error handling. The finalized trace is then available as `function.last_trace` (it is `None` before the first traced run). Its `exception` field contains the exception type, message, and representation.
-
-### `Trace`
-
-`Trace` is the object returned by `.run()`.
-
-- `trace.steps` is an ordered list of step records. Each record has a `step_id`, timestamp, filename, function name, line number, and frozen local snapshot.
-- `trace.result` is the in-memory return value for a successful execution.
-- `trace.exception` is `None` for a successful run or an exception record for a failed traced run.
-- `trace.at(step_id)` returns a `StepView` for that recorded step.
-- `trace.to_file(path)` writes a JSON trace artifact.
-- `Trace.from_file(path)` loads a JSON trace artifact.
-
-A `StepView` provides:
-
-```python
-view = trace.at(0)
-view.locals()    # dict
-view.line_no()   # int
-view.function()  # str
-view.filename()  # str
-```
-
-Trace artifacts use the `.pyrewind.json` suffix by convention. They contain a versioned, JSON-safe representation of the trace. The original runtime return object is intentionally in-memory only; use `result_repr` when inspecting a trace loaded from disk.
-
-### `replay(trace)`
-
-```python
-from pyrewind import replay
-
-new_result, new_trace = replay(trace).run(quantity=4)
-new_result, new_trace = replay(trace).from_step(2).run(quantity=4)
-```
-
-Replay is an **assisted rerun**, not time travel. In the same Python process, pyrewind can reuse captured call inputs and patch the keyword arguments given to `.run()`. A persisted trace cannot safely reconstruct arbitrary values from their `repr`; supply the function's required keyword arguments yourself when rerunning one. Functions that require positional-only inputs are therefore not portable replay targets in v0.1.
-
-`from_step(step_id)` records a checkpoint selection for the replay workflow, but in v0.1 it is metadata-only: the function is always re-executed from its start. It does not resume Python execution from that line.
-
-## Determinism notes
-
-pyrewind captures Python `line` events for the decorated function only. Step order and source locations follow that function's execution, but timestamps, randomness, I/O, clocks, threads, and external services are outside its control. Replaying such a function reruns those effects; pyrewind does not stub or reverse them.
-
-Local snapshots are frozen into JSON-safe values as they are captured. Primitive values are retained; standard containers are copied recursively up to `max_depth`; unsupported or deeply nested values are represented with their type and `repr`. This makes earlier snapshots stable even when a mutable local is changed later, but it is not a deep object debugger.
-
-## Limitations and non-goals
-
-- Regular synchronous Python functions are the primary target. Async/await is supported via `AsyncFunctionTracer` in v2.
-- Nested calls are not expanded into the parent trace; only the decorated function's own line events are recorded.
-- Replay is a rerun with supplied or same-process inputs, not checkpoint restoration or deterministic execution.
-- Saved traces are portable JSON diagnostics, not a serialization format for arbitrary Python objects or executable state.
-
-## v2 Architecture
-
-PyRewind v2 is organized into several modules providing extensible capabilities:
-
-- **core/**: Plugin system, storage backends, event dispatching, serialization strategies
-- **analysis/**: Trace inspection and analysis tools (TraceInspector)
-- **trace/**: Advanced filtering and trace slicing (AdvancedTraceFilter, TraceSlice)
-- **cli/**: Command-line interface for trace inspection and export
-- **metadata/**: Tagging and annotation system (TraceTagger)
-- **plugins/**: Example plugin implementations and extensibility points
-
-## Backwards Compatibility
-
-All v0.1 functionality is preserved and fully compatible. Existing code continues to work without modification. New features are additive.
-
-## Examples
-
-- [basic_usage.py](examples/basic_usage.py) - v0.1 basic example
-- [v2_showcase.py](examples/v2_showcase.py) - v2 features demo
-- [v2_comprehensive_showcase.py](examples/v2_comprehensive_showcase.py) - Complete v2 feature showcase
-
-## Testing
-
-Run the test suite:
+## Automated Test Suite
 
 ```bash
-python -m pytest tests/ -v          # All tests
-python -m pytest tests/test_v2*.py  # v2 feature tests only
+pytest tests -v
 ```
+All **59 unit tests** pass in under 0.5s.
 
-All 24 tests pass (11 v0.1 backwards compatibility + 13 v2 features)
+---
 
-## Performance and privacy
+## License
 
-Line tracing and freezing locals add noticeable overhead, so use pyrewind for debugging and focused investigations rather than hot production paths.
+Distributed under the MIT License. See [LICENSE](LICENSE) for details.
 
-Traces can contain values from local variables, including credentials, tokens, customer data, and file paths. Treat trace files as sensitive artifacts: avoid committing or sharing them, review them before export, and redact sensitive values in application code.
+---
+
+## Author
+
+**Aditya Raj**  
+Indian Institute of Technology Jodhpur (IIT Jodhpur)  
+Email: [b25bs1020@iitj.ac.in](mailto:b25bs1020@iitj.ac.in)  
+GitHub: [@adityarajIITj](https://github.com/adityarajIITj)

@@ -2,17 +2,20 @@
 requires = ["hatchling>=1.18"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build.targets.wheel]
+packages = ["pyrewind"]
+
 [project]
-name = "pyrewind"
-version = "0.2.0a0"
-description = "Step-by-step execution traces and assisted replay for Python functions with comprehensive analysis tools"
+name = "pyrewind-dev"
+version = "0.3.0"
+description = "Step-by-step execution traces, assisted replay, interactive terminal TUI scrubber, and automated root-cause diagnostics for Python functions"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "pyrewind contributors", email = "pyrewind@example.com" }]
-keywords = ["tracing", "execution", "debugging", "analysis", "replay"]
+authors = [{ name = "Aditya Raj", email = "b25bs1020@iitj.ac.in" }]
+keywords = ["tracing", "execution", "debugging", "analysis", "replay", "tui", "diagnostics", "root-cause"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Environment :: Console",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
@@ -29,6 +32,9 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = []
+
+[project.scripts]
+pyrewind = "pyrewind.cli.main:main"
 
 [project.urls]
 Homepage = "https://github.com/adityarajIITj/PYREWIND"

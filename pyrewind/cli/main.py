@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 from typing import Optional
-from pyrewind import Trace
-from pyrewind.analysis.inspector import TraceInspector
-from pyrewind.storage.formats import JSONTraceFormat, CSVTraceFormat
-from pyrewind.export.formats import HTMLTraceFormat
+
+from pyrewind.analysis import TraceInspector
+from pyrewind.export.formats import CSVTraceFormat, HTMLTraceFormat, JSONTraceFormat
+from pyrewind.storage.backends import FileStorageBackend
 from pyrewind.trace.filter import AdvancedTraceFilter
+from pyrewind.trace_model import Trace, TraceException, TraceStep
+from pyrewind.diagnostics import diagnose_trace
+from pyrewind.tui import TerminalScrubber, launch_tui
 
 
 class PyRewindCLI:
@@ -26,10 +28,7 @@ class PyRewindCLI:
             raise FileNotFoundError(f"Trace file not found: {path}")
 
         try:
-            data = json.loads(trace_file.read_text())
-            # Reconstruct Trace object
-            from pyrewind.trace_model import Trace, TraceStep, TraceException
-
+            data = json.loads(trace_file.read_text(encoding="utf-8"))
             steps = []
             for step_data in data.get("steps", []):
                 step = TraceStep(
@@ -74,29 +73,40 @@ class PyRewindCLI:
         inspector = TraceInspector(trace)
         summary = inspector.summary()
 
-        print(f"\n📊 Trace Summary: {trace.qualname}")
+        print(f"\n[*] Trace Summary: {trace.qualname}")
         print(f"   Module: {trace.module}")
         print(f"   Total Steps: {summary['total_steps']}")
         print(f"   Execution Time: {summary['execution_time_ms']:.2f} ms")
-        print(f"   Avg Time/Step: {summary['avg_time_per_step_us']:.2f} µs")
+        print(f"   Avg Time/Step: {summary['avg_time_per_step_us']:.2f} us")
         print(f"   Has Exception: {summary['has_exception']}")
 
         if verbose:
-            print(f"\n📈 Timing Stats:")
+            print(f"\n[^] Timing Stats:")
             timing = summary["timing"]
-            print(f"   Min: {timing['min_us']:.2f} µs")
-            print(f"   Max: {timing['max_us']:.2f} µs")
-            print(f"   Mean: {timing['mean_us']:.2f} µs")
-            print(f"   Median: {timing['median_us']:.2f} µs")
+            print(f"   Min: {timing['min_us']:.2f} us")
+            print(f"   Max: {timing['max_us']:.2f} us")
+            print(f"   Mean: {timing['mean_us']:.2f} us")
+            print(f"   Median: {timing['median_us']:.2f} us")
 
-            print(f"\n📦 Variables:")
+            print(f"\n[v] Variables:")
             for var_name, info in summary["variables"].items():
                 print(f"   {var_name}: {info['steps_present']} steps")
 
-            print(f"\n⚡ Hotspots (slowest steps):")
+            print(f"\n[!] Hotspots (slowest steps):")
             hotspots = inspector.hotspots()
             for step_id, time_us in hotspots[:5]:
-                print(f"   Step {step_id}: {time_us:.2f} µs")
+                print(f"   Step {step_id}: {time_us:.2f} us")
+
+    def diagnose(self, trace_path: str, target_var: Optional[str] = None) -> None:
+        """Run automated root-cause diagnosis on a trace."""
+        trace = self.load_trace(trace_path)
+        report_text = diagnose_trace(trace, target_variable=target_var)
+        print(report_text)
+
+    def tui(self, trace_path: str) -> None:
+        """Launch interactive Terminal Scrubber TUI."""
+        trace = self.load_trace(trace_path)
+        launch_tui(trace)
 
     def export(self, trace_path: str, output_path: str, format: str = "html") -> None:
         """Export trace to a different format."""
@@ -111,7 +121,6 @@ class PyRewindCLI:
         else:
             raise ValueError(f"Unknown format: {format}")
 
-        # Build trace dict for export
         trace_dict = {
             "trace_id": trace.trace_id,
             "module": trace.module,
@@ -143,9 +152,9 @@ class PyRewindCLI:
         try:
             data = exporter.serialize(trace_dict)
             Path(output_path).write_bytes(data)
-            print(f"✅ Exported to {output_path} ({len(data)} bytes)")
+            print(f"[✓] Exported to {output_path} ({len(data)} bytes)")
         except Exception as e:
-            print(f"❌ Export failed: {e}")
+            print(f"[!] Export failed: {e}")
 
     def diff(self, trace1_path: str, trace2_path: str, verbose: bool = False) -> None:
         """Compare two traces."""
@@ -156,7 +165,7 @@ class PyRewindCLI:
         comparison = TraceComparison(trace1, trace2)
         summary = comparison.summary()
 
-        print(f"\n🔍 Trace Comparison")
+        print(f"\n[~] Trace Comparison")
         print(f"   Step Count Diff: {summary['step_count_diff']:+d}")
         print(f"   Execution Time Diff: {summary['execution_time_diff_ns']:+.0f} ns")
         print(f"   Results Same: {summary['result_repr_same']}")
@@ -179,6 +188,15 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="PyRewind CLI Tool")
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
+
+    # tui command
+    tui_parser = subparsers.add_parser("tui", help="Launch interactive Terminal Scrubber TUI")
+    tui_parser.add_argument("trace_path", help="Path to trace JSON file")
+
+    # diagnose command
+    diag_parser = subparsers.add_parser("diagnose", help="Run automated root-cause diagnosis")
+    diag_parser.add_argument("trace_path", help="Path to trace JSON file")
+    diag_parser.add_argument("--var", dest="target_var", help="Target variable to diagnose")
 
     # inspect command
     inspect_parser = subparsers.add_parser("inspect", help="Inspect a trace")
@@ -203,7 +221,11 @@ def main() -> None:
 
     cli = PyRewindCLI()
 
-    if args.command == "inspect":
+    if args.command == "tui":
+        cli.tui(args.trace_path)
+    elif args.command == "diagnose":
+        cli.diagnose(args.trace_path, target_var=args.target_var)
+    elif args.command == "inspect":
         cli.inspect(args.trace_path, verbose=args.verbose)
     elif args.command == "export":
         cli.export(args.trace_path, args.output, format=args.format)
