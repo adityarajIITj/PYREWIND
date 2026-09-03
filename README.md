@@ -1,6 +1,7 @@
 # pyrewind: Python Execution Forensics, Time-Travel Debugging & Automated Diagnostics
 
 <p align="left">
+  <a href="https://pypi.org/project/pyrewind-dev/"><img src="https://img.shields.io/pypi/v/pyrewind-dev.svg" alt="PyPI - Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-007EC6.svg" alt="License: MIT"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.10+-44CC11.svg" alt="Python 3.10+"></a>
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg" alt="Platform: Windows | macOS | Linux">
